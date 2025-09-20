@@ -1,182 +1,251 @@
 import * as admin from "firebase-admin";
-import * as functions from "firebase-functions";
-import { createHash, randomBytes } from "crypto";
-import { Client, Wallet, xrpToDrops, EscrowCreate, EscrowFinish, SubmitResponse, TxResponse } from "xrpl";
+import {https, logger} from "firebase-functions";
+import {Client, Wallet, xrpToDrops, TransactionMetadata, EscrowCreate, EscrowFinish} from "xrpl";
+import * as crypto from "crypto";
 
 admin.initializeApp();
-
 const db = admin.firestore();
-const ORDERS_COLLECTION = "orders";
 
-interface EscrowCondition {
-  fulfillment: string;
-  condition: string;
-}
+// --- IMPORTANT ---
+// In a production environment, use Firebase's Secret Manager to store secrets
+// like wallet seeds.
+// For this PoC, we are using a placeholder.
+// DO NOT commit real wallet seeds to your repository.
+const MARKET_WALLET_SEED = "sEdTj6MnQjTEFp5uzVn3a43sR5dCjXf"; // A testnet wallet seed
 
-const generateEscrowCondition = (): EscrowCondition => {
-  const fulfillmentBuffer = randomBytes(32);
-  const fulfillment = fulfillmentBuffer.toString("hex").toUpperCase();
-  const condition = createHash("sha256").update(fulfillmentBuffer).digest("hex").toUpperCase();
+/**
+ * Creates an order and sets up an on-chain escrow.
+ *
+ * @param data - The data passed to the function.
+ * @param data.productId - The ID of the product to purchase.
+ * @param context - The authentication context of the user calling the function.
+ * @returns The newly created order's ID.
+ */
+export const createOrder = https.onCall(async (data, context) => {
+  logger.info("createOrder called with data:", data);
 
-  return { fulfillment, condition };
-};
-
-const assertAuthenticated = (context: functions.https.CallableContext): void => {
+  // 1. Authentication and Validation
   if (!context.auth) {
-    throw new functions.https.HttpsError("unauthenticated", "Authentication is required to call this function.");
+    throw new https.HttpsError(
+      "unauthenticated",
+      "The function must be called while authenticated.",
+    );
   }
-};
-
-function assertString(value: unknown, name: string): asserts value is string {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new functions.https.HttpsError("invalid-argument", `${name} must be a non-empty string.`);
-  }
-}
-
-export const createOrder = functions.https.onCall(async (data, context) => {
-  assertAuthenticated(context);
-
-  const buyerAccount = data?.buyerAccount;
-  const sellerAccount = data?.sellerAccount;
-  const amountXrp = data?.amountXrp;
-  const escrowWalletSeed = data?.escrowWalletSeed;
-
-  assertString(buyerAccount, "buyerAccount");
-  assertString(sellerAccount, "sellerAccount");
-  assertString(amountXrp, "amountXrp");
-  assertString(escrowWalletSeed, "escrowWalletSeed");
-
-  const escrowWallet = Wallet.fromSeed(escrowWalletSeed);
-  const { condition, fulfillment } = generateEscrowCondition();
-
-  const orderRef = db.collection(ORDERS_COLLECTION).doc();
-  const orderRecord = {
-    buyerAccount,
-    sellerAccount,
-    amountXrp,
-    escrowCondition: condition,
-    escrowFulfillment: fulfillment,
-    escrowWallet: escrowWallet.address,
-    status: "pending",
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    createdBy: context.auth.uid,
-  };
-
-  await orderRef.set(orderRecord);
-
-  return {
-    orderId: orderRef.id,
-    escrowCondition: condition,
-    escrowFulfillment: fulfillment,
-    escrowWallet: escrowWallet.address,
-  };
-});
-
-export const completeOrder = functions.https.onCall(async (data, context) => {
-  assertAuthenticated(context);
-
-  const orderId = data?.orderId;
-  const escrowReleaseTxHash = data?.escrowReleaseTxHash;
-
-  assertString(orderId, "orderId");
-  assertString(escrowReleaseTxHash, "escrowReleaseTxHash");
-
-  const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
-  const orderSnap = await orderRef.get();
-
-  if (!orderSnap.exists) {
-    throw new functions.https.HttpsError("not-found", "Order not found.");
-  }
-
-  await orderRef.update({
-    status: "completed",
-    escrowReleaseTxHash,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    completedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
-
-  return { orderId, status: "completed", escrowReleaseTxHash };
-});
-
-export interface EscrowParams {
-  client: Client;
-  wallet: Wallet;
-  destination: string;
-  amountXrp: string;
-  finishAfter: Date;
-}
-
-export interface EscrowResult {
-  create: SubmitResponse<EscrowCreate>;
-  finish: SubmitResponse<EscrowFinish>;
-  lookup: TxResponse<EscrowCreate>;
-}
-
-export async function createAndFinishEscrow({
-  client,
-  wallet,
-  destination,
-  amountXrp,
-  finishAfter,
-}: EscrowParams): Promise<EscrowResult> {
-  await client.connect();
-
-  const escrowTx: EscrowCreate = {
-    TransactionType: "EscrowCreate",
-    Account: wallet.address,
-    Destination: destination,
-    Amount: xrpToDrops(amountXrp),
-    FinishAfter: Math.floor(finishAfter.getTime() / 1000),
-  };
-
-  const preparedTx = await client.autofill<EscrowCreate>(escrowTx);
-  const signedTx = wallet.sign(preparedTx);
-  const createResult: SubmitResponse<EscrowCreate> = await client.submitAndWait(signedTx.tx_blob);
-
-  if (createResult.result.tx_json.meta?.TransactionResult !== "tesSUCCESS") {
-    throw new Error(
-      `EscrowCreate failed with result: ${createResult.result.tx_json.meta?.TransactionResult ?? "unknown"}`
+  const {productId} = data;
+  if (!productId) {
+    throw new https.HttpsError(
+      "invalid-argument",
+      "The function must be called with a 'productId'.",
     );
   }
 
-  const escrowSequence = createResult.result.tx_json.Sequence ?? preparedTx.Sequence;
+  const buyerUid = context.auth.uid;
 
-  if (escrowSequence == null) {
-    throw new Error("EscrowCreate response did not include a Sequence value");
+  try {
+    // 2. Fetch Product and Seller Data
+    const productRef = db.collection("products").doc(productId);
+    const productDoc = await productRef.get();
+    if (!productDoc.exists) {
+      throw new https.HttpsError("not-found", "Product not found.");
+    }
+    const product = productDoc.data();
+    if (!product || !product.price || !product.sellerWalletAddress) {
+      throw new https.HttpsError("invalid-argument", "Invalid product data.");
+    }
+
+    // 3. Create Order Document in Firestore
+    const orderRef = db.collection("orders").doc();
+    const orderData = {
+      buyerUid: buyerUid,
+      productId: productId,
+      sellerWalletAddress: product.sellerWalletAddress,
+      amount: product.price,
+      status: "processing",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    await orderRef.set(orderData);
+    logger.info(`Order ${orderRef.id} created.`);
+
+    // 4. Generate Crypto Condition for Escrow
+    const preimage = crypto.randomBytes(32);
+    const hash = crypto.createHash("sha256").update(preimage).digest();
+    const condition = hash.toString("hex").toUpperCase();
+
+    // Store the preimage in the order document (needed for completion)
+    await orderRef.update({
+      escrowCondition: condition,
+      escrowPreimage: preimage.toString("hex"),
+    });
+    logger.info(`Generated escrow condition for order ${orderRef.id}`);
+
+    // 5. Setup XRPL Client and Wallet
+    const client = new Client("wss://s.altnet.rippletest.net:51233");
+    await client.connect();
+    const marketWallet = Wallet.fromSeed(MARKET_WALLET_SEED);
+
+    // 6. Prepare and Submit EscrowCreate Transaction
+    const escrowTx: EscrowCreate = {
+      TransactionType: "EscrowCreate",
+      Account: marketWallet.address,
+      Amount: xrpToDrops(product.price),
+      Destination: product.sellerWalletAddress,
+      Condition: condition,
+      FinishAfter: Math.floor(new Date().getTime() / 1000 + 3600 * 24 * 7), // 7 days from now
+    };
+
+    const preparedTx = await client.autofill(escrowTx);
+    const signedTx = marketWallet.sign(preparedTx);
+    const result = await client.submitAndWait(signedTx.tx_blob);
+
+    logger.info("EscrowCreate transaction result:", result);
+
+    const txResult = result.result.meta as TransactionMetadata;
+    if (txResult.TransactionResult !== "tesSUCCESS") {
+      throw new Error(
+        `Escrow creation failed: ${txResult.TransactionResult}`,
+      );
+    }
+
+    // 7. Update Order with Escrow Details
+    await orderRef.update({
+      status: "escrowed",
+      escrowTxHash: signedTx.hash,
+    });
+
+    await client.disconnect();
+    logger.info(`Order ${orderRef.id} is now escrowed.`);
+
+    return {orderId: orderRef.id};
+  } catch (error) {
+    logger.error("Error creating order:", error);
+    if (error instanceof https.HttpsError) {
+      throw error;
+    }
+    throw new https.HttpsError("internal", "Could not create order.", error);
   }
+});
 
-  const escrowFinishTx: EscrowFinish = {
-    TransactionType: "EscrowFinish",
-    Account: wallet.address,
-    Owner: wallet.address,
-    OfferSequence: escrowSequence,
-  };
+/**
+ * Completes an order by finishing the on-chain escrow.
+ * This should be called by the buyer once they have received the product.
+ *
+ * @param data - The data passed to the function.
+ * @param data.orderId - The ID of the order to complete.
+ * @param context - The authentication context of the user calling the function.
+ * @returns An object with a success message.
+ */
+export const completeOrder = https.onCall(async (data, context) => {
+  logger.info("completeOrder called with data:", data);
 
-  const preparedFinishTx = await client.autofill<EscrowFinish>(escrowFinishTx);
-  const signedFinishTx = wallet.sign(preparedFinishTx);
-  const finishResult: SubmitResponse<EscrowFinish> = await client.submitAndWait(signedFinishTx.tx_blob);
-
-  if (finishResult.result.tx_json.meta?.TransactionResult !== "tesSUCCESS") {
-    throw new Error(
-      `EscrowFinish failed with result: ${finishResult.result.tx_json.meta?.TransactionResult ?? "unknown"}`
+  // 1. Authentication and Validation
+  if (!context.auth) {
+    throw new https.HttpsError(
+      "unauthenticated",
+      "The function must be called while authenticated.",
+    );
+  }
+  const {orderId} = data;
+  if (!orderId) {
+    throw new https.HttpsError(
+      "invalid-argument",
+      "The function must be called with an 'orderId'.",
     );
   }
 
-  const escrowTxHash = createResult.result.tx_json?.hash ?? signedTx.hash;
+  const buyerUid = context.auth.uid;
 
-  if (!escrowTxHash) {
-    throw new Error("Unable to determine escrow transaction hash");
+  try {
+    // 2. Fetch Order and Validate
+    const orderRef = db.collection("orders").doc(orderId);
+    const orderDoc = await orderRef.get();
+    if (!orderDoc.exists) {
+      throw new https.HttpsError("not-found", "Order not found.");
+    }
+    const order = orderDoc.data();
+    if (!order) {
+      throw new https.HttpsError("internal", "Invalid order data.");
+    }
+    if (order.buyerUid !== buyerUid) {
+      throw new https.HttpsError(
+        "permission-denied",
+        "You are not authorized to complete this order.",
+      );
+    }
+    if (order.status !== "escrowed") {
+      throw new https.HttpsError(
+        "failed-precondition",
+        `Order cannot be completed in its current state: ${order.status}`,
+      );
+    }
+    if (!order.escrowCondition || !order.escrowPreimage) {
+      throw new https.HttpsError(
+        "internal",
+        "Escrow details are missing from the order.",
+      );
+    }
+
+    // 3. Setup XRPL Client and Wallet
+    const client = new Client("wss://s.altnet.rippletest.net:51233");
+    await client.connect();
+    const marketWallet = Wallet.fromSeed(MARKET_WALLET_SEED);
+
+    // 4. Fetch the EscrowCreate transaction to get the OfferSequence
+    const escrowTxData = await client.request({
+      command: "tx",
+      transaction: order.escrowTxHash,
+    });
+    const offerSequence = escrowTxData.result.tx_json.Sequence;
+
+    if (offerSequence === undefined) {
+      throw new Error("Could not find OfferSequence from EscrowCreate tx.");
+    }
+
+    // 5. Prepare and Submit EscrowFinish Transaction
+    const escrowFinishTx: EscrowFinish = {
+      TransactionType: "EscrowFinish",
+      Account: marketWallet.address,
+      Owner: marketWallet.address,
+      OfferSequence: offerSequence,
+      Condition: order.escrowCondition,
+      Fulfillment: order.escrowPreimage,
+    };
+
+    const preparedTx = await client.autofill(escrowFinishTx);
+    const signedTx = marketWallet.sign(preparedTx);
+    const result = await client.submitAndWait(signedTx.tx_blob);
+
+    logger.info("EscrowFinish transaction result:", result);
+
+    // 수정 후 (타입을 미리 명시, 추출해서 사용)
+    const txResult = result.result.meta as TransactionMetadata;
+    if (txResult.TransactionResult !== "tesSUCCESS") {
+      throw new Error(
+        `Escrow finish failed: ${txResult.TransactionResult}`,
+      );
+    }
+
+    // 수정 전
+    // if (result.result.meta?.TransactionResult !== "tesSUCCESS") {
+    //   throw new Error(
+    //     `Escrow finish failed: ${result.result.meta?.TransactionResult}`,
+    //   );
+    // }
+
+    // 6. Update Order Status
+    await orderRef.update({
+      status: "completed",
+      completedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await client.disconnect();
+    logger.info(`Order ${orderRef.id} has been completed.`);
+
+    return {success: true, message: "Order completed successfully."};
+  } catch (error) {
+    logger.error("Error completing order:", error);
+    if (error instanceof https.HttpsError) {
+      throw error;
+    }
+    throw new https.HttpsError("internal", "Could not complete order.", error);
   }
-
-  const escrowTxData: TxResponse<EscrowCreate> = await client.request({
-    command: "tx",
-    transaction: escrowTxHash,
-  });
-
-  return {
-    create: createResult,
-    finish: finishResult,
-    lookup: escrowTxData,
-  };
-}
+});
