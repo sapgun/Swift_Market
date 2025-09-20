@@ -140,7 +140,7 @@ export async function createAndFinishEscrow({
     );
   }
 
-  const escrowSequence = createResult.result.Sequence ?? preparedTx.Sequence;
+  const escrowSequence = createResult.result.tx_json.Sequence ?? preparedTx.Sequence;
 
   if (escrowSequence == null) {
     throw new Error("EscrowCreate response did not include a Sequence value");
