@@ -31,6 +31,7 @@ export const createOrder = https.onCall(async (data, context) => {
       "The function must be called while authenticated.",
     );
   }
+<<<<<<< HEAD
   const {productId} = data;
   if (!productId) {
     throw new https.HttpsError(
@@ -40,6 +41,124 @@ export const createOrder = https.onCall(async (data, context) => {
   }
 
   const buyerUid = context.auth.uid;
+=======
+};
+
+function assertString(value: unknown, name: string): asserts value is string {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new functions.https.HttpsError("invalid-argument", `${name} must be a non-empty string.`);
+  }
+}
+
+export const createOrder = functions.https.onCall(async (data, context) => {
+  assertAuthenticated(context);
+
+  const buyerAccount = data?.buyerAccount;
+  const sellerAccount = data?.sellerAccount;
+  const amountXrp = data?.amountXrp;
+  const escrowWalletSeed = data?.escrowWalletSeed;
+
+  assertString(buyerAccount, "buyerAccount");
+  assertString(sellerAccount, "sellerAccount");
+  assertString(amountXrp, "amountXrp");
+  assertString(escrowWalletSeed, "escrowWalletSeed");
+
+  const escrowWallet = Wallet.fromSeed(escrowWalletSeed);
+  const { condition, fulfillment } = generateEscrowCondition();
+
+  const orderRef = db.collection(ORDERS_COLLECTION).doc();
+  const orderRecord = {
+    buyerAccount,
+    sellerAccount,
+    amountXrp,
+    escrowCondition: condition,
+    escrowFulfillment: fulfillment,
+    escrowWallet: escrowWallet.address,
+    status: "pending",
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdBy: context.auth.uid,
+  };
+
+  await orderRef.set(orderRecord);
+
+  return {
+    orderId: orderRef.id,
+    escrowCondition: condition,
+    escrowFulfillment: fulfillment,
+    escrowWallet: escrowWallet.address,
+  };
+});
+
+export const completeOrder = functions.https.onCall(async (data, context) => {
+  assertAuthenticated(context);
+
+  const orderId = data?.orderId;
+  const escrowReleaseTxHash = data?.escrowReleaseTxHash;
+
+  assertString(orderId, "orderId");
+  assertString(escrowReleaseTxHash, "escrowReleaseTxHash");
+
+  const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
+  const orderSnap = await orderRef.get();
+
+  if (!orderSnap.exists) {
+    throw new functions.https.HttpsError("not-found", "Order not found.");
+  }
+
+  await orderRef.update({
+    status: "completed",
+    escrowReleaseTxHash,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    completedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { orderId, status: "completed", escrowReleaseTxHash };
+});
+
+export interface EscrowParams {
+  client: Client;
+  wallet: Wallet;
+  destination: string;
+  amountXrp: string;
+  finishAfter: Date;
+}
+
+export interface EscrowResult {
+  create: SubmitResponse<EscrowCreate>;
+  finish: SubmitResponse<EscrowFinish>;
+  lookup: TxResponse<EscrowCreate>;
+}
+
+export async function createAndFinishEscrow({
+  client,
+  wallet,
+  destination,
+  amountXrp,
+  finishAfter,
+}: EscrowParams): Promise<EscrowResult> {
+  await client.connect();
+
+  const escrowTx: EscrowCreate = {
+    TransactionType: "EscrowCreate",
+    Account: wallet.address,
+    Destination: destination,
+    Amount: xrpToDrops(amountXrp),
+    FinishAfter: Math.floor(finishAfter.getTime() / 1000),
+  };
+
+  const preparedTx = await client.autofill<EscrowCreate>(escrowTx);
+  const signedTx = wallet.sign(preparedTx);
+  const createResult: SubmitResponse<EscrowCreate> = await client.submitAndWait(signedTx.tx_blob);
+
+  if (createResult.result.tx_json.meta?.TransactionResult !== "tesSUCCESS") {
+    throw new Error(
+      `EscrowCreate failed with result: ${createResult.result.tx_json.meta?.TransactionResult ?? "unknown"}`
+    );
+  }
+
+  const escrowSequence = createResult.result.tx_json.Sequence ?? preparedTx.Sequence;
+>>>>>>> ab610189bc624478e5576346e385dc1d8ee1501f
 
   try {
     // 2. Fetch Product and Seller Data
@@ -136,6 +255,7 @@ export const createOrder = https.onCall(async (data, context) => {
 export const completeOrder = https.onCall(async (data, context) => {
   logger.info("completeOrder called with data:", data);
 
+<<<<<<< HEAD
   // 1. Authentication and Validation
   if (!context.auth) {
     throw new https.HttpsError(
@@ -148,6 +268,15 @@ export const completeOrder = https.onCall(async (data, context) => {
     throw new https.HttpsError(
       "invalid-argument",
       "The function must be called with an 'orderId'.",
+=======
+  const preparedFinishTx = await client.autofill<EscrowFinish>(escrowFinishTx);
+  const signedFinishTx = wallet.sign(preparedFinishTx);
+  const finishResult: SubmitResponse<EscrowFinish> = await client.submitAndWait(signedFinishTx.tx_blob);
+
+  if (finishResult.result.tx_json.meta?.TransactionResult !== "tesSUCCESS") {
+    throw new Error(
+      `EscrowFinish failed with result: ${finishResult.result.tx_json.meta?.TransactionResult ?? "unknown"}`
+>>>>>>> ab610189bc624478e5576346e385dc1d8ee1501f
     );
   }
 
