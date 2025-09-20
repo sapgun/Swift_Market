@@ -134,13 +134,13 @@ export async function createAndFinishEscrow({
   const signedTx = wallet.sign(preparedTx);
   const createResult: SubmitResponse<EscrowCreate> = await client.submitAndWait(signedTx.tx_blob);
 
-  if (createResult.result.meta?.TransactionResult !== "tesSUCCESS") {
+  if (createResult.result.tx_json.meta?.TransactionResult !== "tesSUCCESS") {
     throw new Error(
-      `EscrowCreate failed with result: ${createResult.result.meta?.TransactionResult ?? "unknown"}`
+      `EscrowCreate failed with result: ${createResult.result.tx_json.meta?.TransactionResult ?? "unknown"}`
     );
   }
 
-  const escrowSequence = createResult.result.Sequence ?? preparedTx.Sequence;
+  const escrowSequence = createResult.result.tx_json.Sequence ?? preparedTx.Sequence;
 
   if (escrowSequence == null) {
     throw new Error("EscrowCreate response did not include a Sequence value");
@@ -157,9 +157,9 @@ export async function createAndFinishEscrow({
   const signedFinishTx = wallet.sign(preparedFinishTx);
   const finishResult: SubmitResponse<EscrowFinish> = await client.submitAndWait(signedFinishTx.tx_blob);
 
-  if (finishResult.result.meta?.TransactionResult !== "tesSUCCESS") {
+  if (finishResult.result.tx_json.meta?.TransactionResult !== "tesSUCCESS") {
     throw new Error(
-      `EscrowFinish failed with result: ${finishResult.result.meta?.TransactionResult ?? "unknown"}`
+      `EscrowFinish failed with result: ${finishResult.result.tx_json.meta?.TransactionResult ?? "unknown"}`
     );
   }
 

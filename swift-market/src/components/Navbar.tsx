@@ -1,12 +1,25 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useSearch } from '../context/SearchContext';
 import { auth, googleProvider } from '../lib/firebase';
 import { signInWithPopup, signOut } from 'firebase/auth';
 
 const Navbar: React.FC = () => {
   const { currentUser } = useAuth();
+  const { query, setQuery } = useSearch();
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 16);
+    };
+
+    handleScroll();
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const handleLogin = async () => {
     try {
@@ -25,10 +38,13 @@ const Navbar: React.FC = () => {
   };
 
   return (
-    <nav className="bg-white shadow-sm">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          <div className="flex items-center space-x-8">
+    <header
+      className={`fixed inset-x-0 top-0 z-50 border-b transition duration-300 ${
+        isScrolled ? 'border-gray-200 bg-white/90 shadow-lg backdrop-blur' : 'border-transparent bg-white/60 backdrop-blur'
+      }`}
+    >
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-4">
+        <div className="flex items-center gap-6">
             <Link to="/" className="flex items-center space-x-2 text-2xl font-bold text-primary">
               <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01" />
@@ -38,38 +54,100 @@ const Navbar: React.FC = () => {
               </svg>
               <span>Swift Market</span>
             </Link>
-            <div className="hidden md:flex space-x-8">
-              <Link to="/" className="text-text-secondary hover:text-primary transition-colors duration-300">Home</Link>
-              <Link to="/products" className="text-text-secondary hover:text-primary transition-colors duration-300">Products</Link>
-              <Link to="/about" className="text-text-secondary hover:text-primary transition-colors duration-300">About</Link>
-              <Link to="/contact" className="text-text-secondary hover:text-primary transition-colors duration-300">Contact</Link>
-            </div>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="relative hidden md:block">
-              <input type="text" placeholder="Search" className="bg-secondary rounded-full py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-primary" />
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          <nav className="hidden items-center gap-4 text-sm font-medium text-text-secondary lg:flex">
+            <Link to="/" className="transition hover:text-primary">
+              Marketplace
+            </Link>
+            <Link to="/dashboard" className="transition hover:text-primary">
+              Dashboard
+            </Link>
+            <Link to="/about" className="transition hover:text-primary">About</Link>
+            <Link to="/contact" className="transition hover:text-primary">Contact</Link>
+          </nav>
+        </div>
+        <div className="flex flex-1 items-center justify-end gap-4">
+          <div className="relative hidden w-full max-w-md flex-1 items-center lg:flex">
+            <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-gray-400">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="h-5 w-5"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
               </svg>
-            </div>
+            </span>
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search assets, sellers, or XRPL offers"
+              className="w-full rounded-full border border-gray-200 bg-white/70 px-12 py-2.5 text-sm text-gray-700 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <Link
+              to="/create"
+              className="hidden rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:inline-flex"
+            >
+              Create Product
+            </Link>
             {currentUser ? (
-              <div className="flex items-center space-x-4">
-                <Link to="/create" className="hidden md:block text-text-secondary hover:text-primary transition-colors duration-300">Create</Link>
-                <button onClick={handleLogout} className="hidden md:block bg-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-primary-hover transition-colors duration-300">Logout</button>
-                <img src={currentUser.photoURL || 'https://via.placeholder.com/40'} alt="User" className="h-10 w-10 rounded-full" />
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleLogout}
+                  className="rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:border-gray-300 hover:text-gray-900"
+                >
+                  Sign out
+                </button>
+                <Link to="/dashboard" className="flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-inner">
+                  {currentUser.photoURL ? (
+                    <img src={currentUser.photoURL} alt={currentUser.displayName ?? 'Account'} className="h-8 w-8 rounded-full object-cover" />
+                  ) : (
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                      {currentUser.email?.[0]?.toUpperCase() ?? 'U'}
+                    </span>
+                  )}
+                  <span className="hidden sm:inline">{currentUser.displayName ?? 'Account'}</span>
+                </Link>
               </div>
             ) : (
-              <button onClick={handleLogin} className="bg-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-primary-hover transition-colors duration-300">Sign In</button>
+              <button
+                onClick={handleLogin}
+                className="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 transition hover:border-primary hover:text-primary"
+              >
+                Sign in with Google
+              </button>
             )}
-            <div className="md:hidden">
-                <button className="text-text-secondary hover:text-primary">
-                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7" /></svg>
-                </button>
-            </div>
           </div>
         </div>
       </div>
-    </nav>
+      <div className="mx-auto block w-full max-w-7xl px-6 pb-4 lg:hidden">
+        <div className="relative">
+          <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-gray-400">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              className="h-5 w-5"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+          </span>
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search assets, sellers, or XRPL offers"
+            className="w-full rounded-full border border-gray-200 bg-white/80 px-12 py-2.5 text-sm text-gray-700 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+          />
+        </div>
+      </div>
+    </header>
   );
 };
 

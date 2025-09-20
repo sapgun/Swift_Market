@@ -12,6 +12,10 @@ export interface Product {
   price: number;
   imageUrl: string;
   sellerId: string;
+  sellerName?: string;
+  sellerPhotoURL?: string | null;
+  sellerVerified?: boolean;
+  currency?: string;
   status: 'available' | 'sold';
   verifiedSeller?: boolean;
 }
@@ -22,4 +26,7 @@ export interface Order {
   buyerId: string;
   sellerId: string;
   createdAt: any; // Firestore timestamp
+  status?: 'in-escrow' | 'shipped' | 'completed' | 'cancelled';
+  amount?: number;
+  currency?: string;
 }
