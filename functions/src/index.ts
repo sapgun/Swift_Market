@@ -134,9 +134,9 @@ export async function createAndFinishEscrow({
   const signedTx = wallet.sign(preparedTx);
   const createResult: SubmitResponse<EscrowCreate> = await client.submitAndWait(signedTx.tx_blob);
 
-  if (createResult.result.meta?.TransactionResult !== "tesSUCCESS") {
+  if (createResult.result.tx_json.meta?.TransactionResult !== "tesSUCCESS") {
     throw new Error(
-      `EscrowCreate failed with result: ${createResult.result.meta?.TransactionResult ?? "unknown"}`
+      `EscrowCreate failed with result: ${createResult.result.tx_json.meta?.TransactionResult ?? "unknown"}`
     );
   }
 
@@ -157,9 +157,9 @@ export async function createAndFinishEscrow({
   const signedFinishTx = wallet.sign(preparedFinishTx);
   const finishResult: SubmitResponse<EscrowFinish> = await client.submitAndWait(signedFinishTx.tx_blob);
 
-  if (finishResult.result.meta?.TransactionResult !== "tesSUCCESS") {
+  if (finishResult.result.tx_json.meta?.TransactionResult !== "tesSUCCESS") {
     throw new Error(
-      `EscrowFinish failed with result: ${finishResult.result.meta?.TransactionResult ?? "unknown"}`
+      `EscrowFinish failed with result: ${finishResult.result.tx_json.meta?.TransactionResult ?? "unknown"}`
     );
   }
 
