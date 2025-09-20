@@ -7,13 +7,13 @@ import { getFunctions } from 'firebase/functions';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCHGnqF5vW0J4wb7ackje7K5k1j8fDkZDo",
-  authDomain: "swift-market-2363d.firebaseapp.com",
-  projectId: "swift-market-2363d",
-  storageBucket: "swift-market-2363d.firebasestorage.app",
-  messagingSenderId: "245691126281",
-  appId: "1:245691126281:web:2e6288b1089fc3d09c1ed8",
-  measurementId: "G-R9EBCNL69N"
+  apiKey: process.env.REACT_APP_API_KEY,
+  authDomain: process.env.REACT_APP_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_APP_ID,
+  measurementId: process.env.REACT_APP_MEASUREMENT_ID
 };
 
 // Initialize Firebase
