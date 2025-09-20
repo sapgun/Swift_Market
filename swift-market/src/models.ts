@@ -17,6 +17,7 @@ export interface Product {
   sellerVerified?: boolean;
   currency?: string;
   status: 'available' | 'sold';
+  verifiedSeller?: boolean;
 }
 
 export interface Order {

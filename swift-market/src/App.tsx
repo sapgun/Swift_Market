@@ -1,6 +1,8 @@
+
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Navbar from './components/Navbar';
+import Footer from './components/Footer'; 
 import Home from './pages/Home';
 import Product from './pages/Product';
 import CreateProduct from './pages/CreateProduct';
@@ -15,11 +17,11 @@ const App: React.FC = () => {
     <AuthProvider>
       <ToastProvider>
         <SearchProvider>
-          <div className="min-h-screen bg-slate-50">
-            <Router>
+          <Router>
+            <div className="flex flex-col min-h-screen bg-background">
               <Navbar />
               <ToastViewport />
-              <main className="pb-16 pt-24">
+              <main className="flex-grow pb-16 pt-24">
                 <Routes>
                   <Route path="/" element={<Home />} />
                   <Route path="/product/:id" element={<Product />} />
@@ -27,8 +29,9 @@ const App: React.FC = () => {
                   <Route path="/dashboard" element={<Dashboard />} />
                 </Routes>
               </main>
-            </Router>
-          </div>
+              <Footer />
+            </div>
+          </Router>
         </SearchProvider>
       </ToastProvider>
     </AuthProvider>

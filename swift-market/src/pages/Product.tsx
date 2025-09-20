@@ -1,10 +1,11 @@
+
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
-import { Product as ProductModel } from '../models';
+import { Product as ProductModel, User } from '../models';
 import VerifiedBadge from '../components/VerifiedBadge';
 import TrustBadge from '../components/TrustBadge';
 import { useToast } from '../context/ToastContext';
@@ -13,6 +14,7 @@ import { sampleProducts } from '../data/sampleProducts';
 const Product: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [product, setProduct] = useState<ProductModel | null>(null);
+  const [seller, setSeller] = useState<User | null>(null);
   const [selectedImage, setSelectedImage] = useState('');
   const [isPurchasing, setIsPurchasing] = useState(false);
   const { currentUser } = useAuth();
@@ -20,18 +22,22 @@ const Product: React.FC = () => {
 
   useEffect(() => {
     const fetchProduct = async () => {
-      if (!id) {
-        return;
-      }
+      if (!id) return;
 
       try {
-        const docRef = doc(db, 'products', id);
-        const docSnap = await getDoc(docRef);
+        const productDocRef = doc(db, 'products', id);
+        const productDocSnap = await getDoc(productDocRef);
 
-        if (docSnap.exists()) {
-          const data = { id: docSnap.id, ...docSnap.data() } as ProductModel;
-          setProduct(data);
-          setSelectedImage(data.imageUrl);
+        if (productDocSnap.exists()) {
+          const productData = { id: productDocSnap.id, ...productDocSnap.data() } as ProductModel;
+          setProduct(productData);
+          setSelectedImage(productData.imageUrl);
+
+          const sellerDocRef = doc(db, 'users', productData.sellerId);
+          const sellerDocSnap = await getDoc(sellerDocRef);
+          if (sellerDocSnap.exists()) {
+            setSeller(sellerDocSnap.data() as User);
+          }
           return;
         }
       } catch (error) {
@@ -49,9 +55,7 @@ const Product: React.FC = () => {
   }, [id]);
 
   const handleBuy = async () => {
-    if (!product || !currentUser) {
-      return;
-    }
+    if (!product || !currentUser) return;
 
     const createOrder = httpsCallable(functions, 'createOrder');
 
@@ -77,10 +81,7 @@ const Product: React.FC = () => {
   };
 
   const galleryImages = useMemo(() => {
-    if (!product) {
-      return [];
-    }
-
+    if (!product) return [];
     const unique = new Set<string>();
     unique.add(product.imageUrl);
     return Array.from(unique);
@@ -90,13 +91,13 @@ const Product: React.FC = () => {
     return (
       <div className="mx-auto max-w-7xl px-6">
         <div className="grid gap-10 lg:grid-cols-2 lg:items-start">
-          <div className="aspect-square animate-pulse rounded-3xl bg-slate-200" />
+          <div className="aspect-square animate-pulse rounded-3xl bg-gray-200" />
           <div className="space-y-4">
-            <div className="h-9 w-1/2 animate-pulse rounded bg-slate-200" />
-            <div className="h-6 w-1/3 animate-pulse rounded bg-slate-200" />
+            <div className="h-9 w-1/2 animate-pulse rounded bg-gray-200" />
+            <div className="h-6 w-1/3 animate-pulse rounded bg-gray-200" />
             <div className="space-y-3">
               {[1, 2, 3].map((item) => (
-                <div key={item} className="h-4 w-3/4 animate-pulse rounded bg-slate-200" />
+                <div key={item} className="h-4 w-3/4 animate-pulse rounded bg-gray-200" />
               ))}
             </div>
           </div>
@@ -106,10 +107,10 @@ const Product: React.FC = () => {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-6">
+    <div className="mx-auto max-w-7xl px-6 py-12">
       <div className="grid gap-12 lg:grid-cols-2 lg:items-start">
         <div className="space-y-6">
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
+          <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-lg">
             <img src={selectedImage} alt={product.name} className="h-full w-full object-cover" />
           </div>
           {galleryImages.length > 1 && (
@@ -119,7 +120,7 @@ const Product: React.FC = () => {
                   key={image}
                   onClick={() => setSelectedImage(image)}
                   className={`h-20 w-20 overflow-hidden rounded-2xl border transition ${
-                    image === selectedImage ? 'border-swift-blue ring-2 ring-swift-blue/40' : 'border-transparent'
+                    image === selectedImage ? 'border-primary ring-2 ring-primary/40' : 'border-transparent'
                   }`}
                 >
                   <img src={image} alt="Product thumbnail" className="h-full w-full object-cover" />
@@ -131,39 +132,39 @@ const Product: React.FC = () => {
 
         <div className="space-y-8">
           <div className="space-y-4">
-            <div className="flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-slate-500">
+            <div className="flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-text-secondary">
               XRPL Marketplace
-              <span className="inline-flex h-1 w-1 rounded-full bg-swift-blue" />
+              <span className="inline-flex h-1 w-1 rounded-full bg-primary" />
               {product.status === 'available' ? 'Available now' : 'In escrow'}
             </div>
-            <h1 className="text-3xl font-semibold text-slate-900 sm:text-4xl">{product.name}</h1>
-            <p className="text-lg leading-relaxed text-slate-600">{product.description}</p>
+            <h1 className="text-3xl font-semibold text-text-primary sm:text-4xl">{product.name}</h1>
+            <p className="text-lg leading-relaxed text-text-secondary">{product.description}</p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-6 rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-inner">
+          <div className="flex flex-wrap items-center gap-6 rounded-3xl border border-gray-200 bg-white/80 p-6 shadow-inner">
             <div>
-              <p className="text-sm text-slate-500">Asking price</p>
-              <p className="text-3xl font-semibold text-slate-900">
-                {product.currency ?? 'USD'} {Number(product.price ?? 0).toLocaleString()}
+              <p className="text-sm text-text-secondary">Asking price</p>
+              <p className="text-3xl font-semibold text-text-primary">
+                {product.price} XRP
               </p>
             </div>
-            <div className="h-12 w-px bg-slate-200" aria-hidden />
+            <div className="h-12 w-px bg-gray-200" aria-hidden />
             <div className="flex items-center gap-3">
-              {product.sellerPhotoURL ? (
+              {seller?.photoURL ? (
                 <img
-                  src={product.sellerPhotoURL}
-                  alt={product.sellerName ?? 'Seller'}
+                  src={seller.photoURL}
+                  alt={seller.displayName ?? 'Seller'}
                   className="h-12 w-12 rounded-full object-cover"
                 />
               ) : (
-                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-swift-blue/10 text-base font-semibold text-swift-blue">
-                  {product.sellerName?.[0]?.toUpperCase() ?? 'S'}
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-base font-semibold text-primary">
+                  {seller?.displayName?.[0]?.toUpperCase() ?? 'S'}
                 </span>
               )}
               <div>
-                <p className="text-sm font-semibold text-slate-900">{product.sellerName ?? 'Verified XRPL Seller'}</p>
-                <p className="text-xs text-slate-500">
-                  {product.sellerVerified ? <VerifiedBadge /> : 'Trusted via escrow'}
+                <p className="text-sm font-semibold text-text-primary">{seller?.displayName ?? 'Verified XRPL Seller'}</p>
+                <p className="text-xs text-text-secondary">
+                  {product.verifiedSeller ? <VerifiedBadge /> : 'Trusted via escrow'}
                 </p>
               </div>
             </div>
@@ -174,7 +175,7 @@ const Product: React.FC = () => {
               <button
                 onClick={handleBuy}
                 disabled={isPurchasing}
-                className="flex w-full items-center justify-center gap-2 rounded-full bg-swift-blue px-6 py-4 text-base font-semibold text-white shadow-lg transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:bg-indigo-300"
+                className="flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-4 text-base font-semibold text-white shadow-lg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-indigo-300"
               >
                 <span>Buy now with XRPL escrow</span>
                 <svg
@@ -190,7 +191,7 @@ const Product: React.FC = () => {
                 {isPurchasing && <span className="ml-2 text-sm font-medium text-white/80">Processing…</span>}
               </button>
             ) : (
-              <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-600">
+              <div className="rounded-2xl border border-gray-200 bg-white px-5 py-4 text-sm text-text-secondary">
                 {product.status === 'sold'
                   ? 'This asset has been sold. Explore related listings or connect with the seller for future drops.'
                   : 'Sign in to initiate an XRPL escrow or follow this seller for new listings.'}
@@ -224,20 +225,20 @@ const Product: React.FC = () => {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-inner">
-            <h2 className="text-lg font-semibold text-slate-900">Trade transparency</h2>
-            <div className="mt-4 grid gap-3 text-sm text-slate-600">
+          <div className="rounded-3xl border border-gray-200 bg-white/80 p-6 shadow-inner">
+            <h2 className="text-lg font-semibold text-text-primary">Trade transparency</h2>
+            <div className="mt-4 grid gap-3 text-sm text-text-secondary">
               <div className="flex items-center justify-between">
                 <span>Escrow reference</span>
-                <span className="font-medium text-slate-900">#{product.id.slice(0, 6).toUpperCase()}</span>
+                <span className="font-medium text-text-primary">#{product.id.slice(0, 6).toUpperCase()}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>Settlement speed</span>
-                <span className="font-medium text-slate-900">≈ 5 seconds</span>
+                <span className="font-medium text-text-primary">≈ 5 seconds</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>Seller rating</span>
-                <span className="font-medium text-slate-900">4.9 / 5</span>
+                <span className="font-medium text-text-primary">4.9 / 5</span>
               </div>
             </div>
           </div>
