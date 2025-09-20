@@ -214,6 +214,15 @@ export const completeOrder = https.onCall(async (data, context) => {
 
     logger.info("EscrowFinish transaction result:", result);
 
+    // 수정 후 (타입을 미리 명시, 추출해서 사용)
+    // const txResult = result.result.meta as TransactionMetadata;
+    if (txResult.TransactionResult !== "tesSUCCESS") {
+      throw new Error(
+        `Escrow finish failed: ${result.result.meta?.TransactionResult}`,
+      );
+    }
+
+    // 수정 전
     if (result.result.meta?.TransactionResult !== "tesSUCCESS") {
       throw new Error(
         `Escrow finish failed: ${result.result.meta?.TransactionResult}`,
