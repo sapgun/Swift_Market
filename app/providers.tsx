@@ -1,23 +1,15 @@
+
 'use client';
 
-import { PrivyProvider } from '@privy-io/react-auth';
-import { ReactNode } from 'react';
+import { AuthProvider } from '../context/AuthContext';
+import { SearchProvider } from '../context/SearchContext';
 
-export default function Providers({children}: {children: ReactNode}) {
+export default function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <PrivyProvider
-      appId="cmfrn7cra013rl10dcofogr1y"
-      config={{
-        appearance: {
-          theme: 'light',
-          accentColor: '#676FFF',
-        },
-        embeddedWallets: {
-          createOnLogin: 'users-without-wallets',
-        },
-      }}
-    >
-      {children}
-    </PrivyProvider>
+    <AuthProvider>
+      <SearchProvider>
+        {children}
+      </SearchProvider>
+    </AuthProvider>
   );
 }

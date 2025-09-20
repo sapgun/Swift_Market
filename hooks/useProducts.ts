@@ -1,44 +1,36 @@
+
+'use client';
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { Product } from '../models';
+import { sampleProducts } from '../data/sampleProducts';
 
-export interface Product {
-  id: string;
-  name: string;
-  price: number;
-  description: string;
-  imageUrl: string;
-  sellerWalletAddress: string;
-}
-
-export function useProducts() {
+export const useProducts = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(
-      collection(db, 'products'),
-      (snapshot) => {
-        const productsData: Product[] = snapshot.docs.map(
-          (doc: QueryDocumentSnapshot<DocumentData>) => ({
-            id: doc.id,
-            ...doc.data(),
-          } as Product)
-        );
-        setProducts(productsData);
-        setLoading(false);
-      },
-      (err) => {
-        console.error("Error fetching products: ", err);
-        setError(err);
+    const fetchProducts = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'products'));
+        const productsData = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Product));
+
+        if (productsData.length) {
+          setProducts(productsData);
+        } else {
+          setProducts(sampleProducts);
+        }
+      } catch (error) {
+        console.error('Failed to load products from Firestore. Falling back to sample data.', error);
+        setProducts(sampleProducts);
+      } finally {
         setLoading(false);
       }
-    );
+    };
 
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
+    fetchProducts();
   }, []);
 
-  return { products, loading, error };
-}
+  return { products, loading };
+};

@@ -1,71 +1,58 @@
-'use client';
 
-import { Product } from '@/hooks/useProducts';
-import Image from 'next/image';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { useState } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
+import React from 'react';
 import Link from 'next/link';
+import { Product } from '../models';
+import VerifiedBadge from './VerifiedBadge';
 
 interface ProductCardProps {
   product: Product;
 }
 
-export default function ProductCard({ product }: ProductCardProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [feedback, setFeedback] = useState('');
-  const { authenticated } = usePrivy();
+const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
+  const isVerified = Boolean(product.sellerVerified);
 
-  const handlePurchase = async () => {
-    if (!authenticated) {
-      setFeedback('Please log in to purchase an item.');
-      return;
-    }
-    setIsLoading(true);
-    setFeedback('Processing your order...');
-    try {
-      const functions = getFunctions();
-      const createOrder = httpsCallable(functions, 'createOrder');
-      const result = await createOrder({ productId: product.id });
-      console.log('Order created successfully:', result.data);
-      setFeedback(`Success! Order ID: ${(result.data as any).orderId}. You can view it in your dashboard.`);
-    } catch (error: any) {
-      console.error('Error creating order:', error);
-      setFeedback(`Error: ${error.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const formattedPrice = Number(product.price ?? 0).toLocaleString();
 
   return (
-    <div className="border rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
-      <Link href={`/products/${product.id}`} className="block">
-        <div className="relative w-full h-48">
-          <Image
-            src={product.imageUrl || '/placeholder.png'}
-            alt={product.name}
-            layout="fill"
-            objectFit="cover"
-          />
-        </div>
-        <div className="p-4 flex-grow">
-          <h3 className="text-lg font-semibold truncate">{product.name}</h3>
-          <p className="text-gray-600 mt-1 text-sm h-10 overflow-hidden">{product.description}</p>
-        </div>
-      </Link>
-      <div className="p-4 border-t">
-        <div className="flex items-center justify-between">
-          <span className="text-xl font-bold">{product.price} XRP</span>
-          <button
-            onClick={handlePurchase}
-            disabled={isLoading}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
-          >
-            {isLoading ? 'Processing...' : 'Buy Now'}
-          </button>
-        </div>
-        {feedback && <p className="text-sm mt-2 text-center">{feedback}</p>}
+    <Link
+      href={`/product/${product.id}`}
+      className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition duration-200 ease-out hover:-translate-y-1 hover:shadow-card"
+    >
+      <div className="relative aspect-square overflow-hidden bg-slate-100">
+        <img
+          src={product.imageUrl}
+          alt={product.name}
+          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+        />
+        {isVerified && (
+          <div className="absolute left-3 top-3">
+            <VerifiedBadge />
+          </div>
+        )}
       </div>
-    </div>
+      <div className="flex flex-1 flex-col gap-3 p-5">
+        <div>
+          <h3 className="text-lg font-semibold text-slate-900">{product.name}</h3>
+          <p className="mt-1 text-sm text-slate-500 [display:-webkit-box] [overflow:hidden] [text-overflow:ellipsis] [-webkit-line-clamp:2] [-webkit-box-orient:vertical]">
+            {product.description}
+          </p>
+        </div>
+        <div className="mt-auto flex items-center justify-between">
+          <div>
+            <p className="text-xl font-semibold text-slate-900">
+              {product.currency ?? 'USD'} {formattedPrice}
+            </p>
+            <p className="text-xs text-slate-500">
+              Seller: {product.sellerName || 'Swift Market Vendor'}
+            </p>
+          </div>
+          <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+            {product.status === 'sold' ? 'Sold' : 'Available'}
+          </span>
+        </div>
+      </div>
+    </Link>
   );
-}
+};
+
+export default ProductCard;
