@@ -26,7 +26,16 @@ export const AuthProvider: React.FC<React.PropsWithChildren<{}>> = ({ children }
 
   return (
     <AuthContext.Provider value={{ currentUser }}>
-      {!loading && children}
+      {loading ? (
+        <div
+          className="flex min-h-screen items-center justify-center bg-slate-50 px-6 text-sm text-slate-500"
+          style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', backgroundColor: '#F9FAFB', color: '#475569' }}
+        >
+          Loading Swift Market…
+        </div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 };
