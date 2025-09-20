@@ -1,0 +1,35 @@
+{
+  "name": "swift-market",
+  "version": "1.0.0",
+  "description": "Swift Market: An XRPL-based Global P2P Marketplace",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "functions"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:functions\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:functions": "cd functions && npm run serve",
+    "build": "npm run build:frontend && npm run build:functions",
+    "build:frontend": "cd frontend && npm run build",
+    "build:functions": "cd functions && npm run build",
+    "lint": "npm run lint:frontend && npm run lint:functions",
+    "lint:frontend": "cd frontend && npm run lint",
+    "lint:functions": "cd functions && npm run lint",
+    "install:all": "npm install && cd frontend && npm install && cd ../functions && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "xrpl",
+    "marketplace",
+    "p2p",
+    "firebase",
+    "nextjs",
+    "typescript"
+  ],
+  "author": "",
+  "license": "Apache-2.0"
+}
