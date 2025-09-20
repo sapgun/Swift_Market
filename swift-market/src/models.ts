@@ -13,6 +13,7 @@ export interface Product {
   imageUrl: string;
   sellerId: string;
   status: 'available' | 'sold';
+  verifiedSeller?: boolean;
 }
 
 export interface Order {
