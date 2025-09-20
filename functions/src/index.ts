@@ -1,6 +1,6 @@
 import * as admin from "firebase-admin";
 import {https, logger} from "firebase-functions";
-import {Client, Wallet, xrpToDrops} from "xrpl";
+import {Client, Wallet, xrpToDrops, TransactionMetadata, EscrowCreate, EscrowFinish} from "xrpl";
 import * as crypto from "crypto";
 
 admin.initializeApp();
@@ -84,13 +84,13 @@ export const createOrder = https.onCall(async (data, context) => {
     const marketWallet = Wallet.fromSeed(MARKET_WALLET_SEED);
 
     // 6. Prepare and Submit EscrowCreate Transaction
-    const escrowTx = {
+    const escrowTx: EscrowCreate = {
       TransactionType: "EscrowCreate",
       Account: marketWallet.address,
       Amount: xrpToDrops(product.price),
       Destination: product.sellerWalletAddress,
       Condition: condition,
-      FinishAfter: new Date(new Date().getTime() / 1000 + 3600 * 24 * 7), // 7 days from now
+      FinishAfter: Math.floor(new Date().getTime() / 1000 + 3600 * 24 * 7), // 7 days from now
     };
 
     const preparedTx = await client.autofill(escrowTx);
@@ -99,9 +99,10 @@ export const createOrder = https.onCall(async (data, context) => {
 
     logger.info("EscrowCreate transaction result:", result);
 
-    if (result.result.meta?.TransactionResult !== "tesSUCCESS") {
+    const txResult = result.result.meta as TransactionMetadata;
+    if (txResult.TransactionResult !== "tesSUCCESS") {
       throw new Error(
-        `Escrow creation failed: ${result.result.meta?.TransactionResult}`,
+        `Escrow creation failed: ${txResult.TransactionResult}`,
       );
     }
 
@@ -193,13 +194,14 @@ export const completeOrder = https.onCall(async (data, context) => {
       command: "tx",
       transaction: order.escrowTxHash,
     });
-    const offerSequence = escrowTxData.result.Sequence;
+    const offerSequence = escrowTxData.result.tx_json.Sequence;
+
     if (offerSequence === undefined) {
       throw new Error("Could not find OfferSequence from EscrowCreate tx.");
     }
 
     // 5. Prepare and Submit EscrowFinish Transaction
-    const escrowFinishTx = {
+    const escrowFinishTx: EscrowFinish = {
       TransactionType: "EscrowFinish",
       Account: marketWallet.address,
       Owner: marketWallet.address,
@@ -215,19 +217,19 @@ export const completeOrder = https.onCall(async (data, context) => {
     logger.info("EscrowFinish transaction result:", result);
 
     // 수정 후 (타입을 미리 명시, 추출해서 사용)
-    // const txResult = result.result.meta as TransactionMetadata;
+    const txResult = result.result.meta as TransactionMetadata;
     if (txResult.TransactionResult !== "tesSUCCESS") {
       throw new Error(
-        `Escrow finish failed: ${result.result.meta?.TransactionResult}`,
+        `Escrow finish failed: ${txResult.TransactionResult}`,
       );
     }
 
     // 수정 전
-    if (result.result.meta?.TransactionResult !== "tesSUCCESS") {
-      throw new Error(
-        `Escrow finish failed: ${result.result.meta?.TransactionResult}`,
-      );
-    }
+    // if (result.result.meta?.TransactionResult !== "tesSUCCESS") {
+    //   throw new Error(
+    //     `Escrow finish failed: ${result.result.meta?.TransactionResult}`,
+    //   );
+    // }
 
     // 6. Update Order Status
     await orderRef.update({
