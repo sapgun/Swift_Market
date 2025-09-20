@@ -1,5 +1,27 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+# Swift Market - Proof of Concept
+
+Swift Market is a global P2P marketplace aiming to revolutionize cross-border e-commerce using the XRP Ledger. This proof-of-concept (PoC) demonstrates the core user flow of purchasing a product and having the payment secured in an on-chain escrow.
+
+## Tech Stack
+
+- **Frontend:** Next.js (React)
+- **Styling:** Tailwind CSS
+- **Backend:** Firebase Cloud Functions
+- **Database:** Firebase Firestore (Real-time)
+- **Authentication:** Privy (Social Login & Embedded Wallets)
+- **Blockchain:** XRP Ledger (`xrpl.js`)
+
+## Core Features
+
+- **User Authentication:** Simple and secure login via social accounts powered by Privy.
+- **Embedded Wallets:** Automatic creation of non-custodial wallets for users, enabling seamless interaction with the XRP Ledger.
+- **Real-time Product Listings:** Products are fetched in real-time from Firestore.
+- **On-Chain Escrow:** When a user buys a product, funds are automatically placed into a secure on-chain escrow on the XRPL Testnet.
+- **User Dashboard:** A personal dashboard for users to view their wallet address and track their purchase history.
+- **Decentralized Settlement:** Buyers can confirm receipt of their items, which triggers the automatic release of escrowed funds directly to the seller's wallet.
+
 ## Getting Started
 
 First, run the development server:
